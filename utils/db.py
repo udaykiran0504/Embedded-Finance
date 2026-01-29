@@ -475,8 +475,33 @@ class DATABASE:
     def insert_ml_model(self, customer_id,score):
         query = "insert into MLModelResult (CustomerID, Score, ModelType, Status, CommunicationLogID, InsertedBy, InsertedDate, Bin) values (?, ?, 3, 0, 0, 'Vivifi', GETDATE(), 10);"
         self.execute_query(query, (customer_id,score))
-  
 
+    def update_dl(self):
+        conn = None
+        cursor = None
+        try:
+            conn = self.establish_connection()
+            cursor = conn.cursor()
+            excel_data = pd.read_excel("Udhyam.xlsx")
+            new_dl = excel_data.at[0, "drivinglic"]
+            old_dl = "JH4619440257018"
+            query = """
+            IF EXISTS (SELECT 1 FROM CustomerIdentity WHERE DrivingLicense = ?)
+            BEGIN
+               UPDATE CustomerIdentity
+               SET DrivingLicense = ?
+               WHERE DrivingLicense = ?;
+            END
+            """
+            cursor.execute(query, (old_dl, new_dl, old_dl))
+            conn.commit()
+
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+ 
 
 
 

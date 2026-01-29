@@ -354,10 +354,14 @@ dob_input_field = (By.XPATH,'//*[@id="DOB"]')
 gender_drop = (By.ID,'GenderID')
 net_income = (By.ID,'NetIncomeAmount')
 ifsc_new = (By.ID,'IFSC')
+bank_name = (By.ID,'BankName')
 account_no =(By.ID,'AccountNumber')
 confirm_account_no = (By.ID,'ConfirmAccountNumber')
 customer_zip_code = (By.ID,'CustomerZipCode')
 driving_lic = (By.ID,'DrivingLicense')
+Account_creation = (By.XPATH,'//*[@id="AccountCreation"]')
+Congrtualtions_cibil = (By.ID,'congratulations')
+cibil_button = (By.XPATH,'//*[@id="btnProcessCibilHit"]')
 
 
 

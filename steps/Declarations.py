@@ -45,33 +45,7 @@ class Registration:
             df.to_excel(writer, sheet_name=sheet_name, index=False)
         logging.info(f"Deleted second row from {sheet_name} in {file_path}")
 
-    def update_dl(self):
-        conn = None
-        cursor = None
-        try:
-            conn = self.establish_connection()
-            cursor = conn.cursor()
-            # Hardcoding the 'Old' DL to be replaced and the 'New' DL to take its place
-            old_dl = 'JH4619440257018'
-            new_dl = 'MN2719725533450'
-            query = f"""
-            IF EXISTS (SELECT 1 FROM CustomerIdentity WHERE DrivingLicense = '{old_dl}')
-            BEGIN
-            UPDATE CustomerIdentity
-            SET DrivingLicense = '{new_dl}'
-            WHERE DrivingLicense = '{old_dl}';
-            END
-            """
-            cursor.execute(query)
-            conn.commit()  # Saves the changes to the database
-            logging.info(f"Updated DL: {old_dl} has been changed to {new_dl} in the database.")
-        except Exception as e:
-            logging.error(f"Database update failed: {e}")
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+
             
    
     def build_url(self):
@@ -80,8 +54,42 @@ class Registration:
         excel_data = self.read_excel_file()
         phn_no = excel_data[0]['Phone_Number_New']
         final_url = f"{base_url}?MobileNo={phn_no}&PartnerID={partner_id}"
+        self.last_phn_no = phn_no
+        self.last_partner_id = partner_id
+        self.last_final_url= final_url
         logging.info(f" embeded  url was genearted {final_url}")
         return final_url
+    
+    def get_recent_final_url(self):
+        if hasattr(self, "last_phn_no") and hasattr(self,"last_partner_id"):
+            resume_base_url = "http://qa-2-fponline.finextqa.xyz/EmFin/ResumeApplication"
+            resume_url = (
+                f"{resume_base_url}"
+                f"?MobileNo={self.last_phn_no}"
+                f"&partnerid={self.last_partner_id}"
+            )
+            logging.info(f"Returning recently used relogin URL: {resume_url}")
+            return resume_url
+        else:
+            raise Exception("No relogin URL found. Please call relogin_url() first.")
+
+ 
+    def enter_dob_js(self, dob):
+        """
+        Optimized JS injection to set DOB and trigger validation.
+        """
+        js_code = f"""
+        let e = document.getElementById('DOB');
+        e.value = '{dob}';
+        e.dispatchEvent(new Event('input', {{ bubbles: true }}));
+        e.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        e.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+        """
+        self.driver.execute_script(js_code)
+        logging.info(f"DOB set to {dob} via optimized JS.")
+
+    
+
 
 
     def scroll_until_found(self, element_locator, start_x, start_y, end_x, end_y, max_swipes=10):
@@ -141,6 +149,18 @@ class Registration:
 
         logging.warning(f"Dropdown did not have at least {min_options} options within {timeout} seconds.")
         return False
+    
+    def enter_dob(self, dob_value):
+        dob_element = WebDriverWait(self.driver, 20).until(
+            EC.presence_of_element_located(Dob_feild)
+            )
+        self.driver.execute_script(
+            "arguments[0].removeAttribute('readonly')",
+            dob_element
+            )
+        dob_element.clear()
+        dob_element.send_keys(dob_value)
+
 
     def is_element_disabled(self, locator,wait_time=30):
         element = WebDriverWait(self.driver, wait_time).until(EC.visibility_of_element_located(locator))
@@ -208,6 +228,16 @@ class Registration:
         duration = time.time() - start_time
         logging.info("Interacted with element '{}' in : {:.2f} seconds".format(self.get_locator_variable_name(locator), duration))
         return duration
+    
+
+    def scroll_into_view(self, locator, wait_time=30):
+        start_time = time.time()
+        element = WebDriverWait(self.driver, wait_time).until(EC.presence_of_element_located(locator))
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});",element)
+        time.sleep(0.5)
+        duration = time.time() - start_time
+        logging.info("Scrolled to element '{}' in : {:.2f} seconds".format(self.get_locator_variable_name(locator), duration))
+        return duration
 
     def wait_for_invisibility(self, locator, wait_time=300):
         start_time = time.time()
@@ -272,7 +302,7 @@ class Registration:
             db_obj.insert_ml_model(customerid,score)
 
 
-    def udyam_reister(self):
+    def Embeded_reister(self):
         excel_data = self.read_excel_file()
         for row in excel_data:
             chrome_service = Service(ChromeDriverManager().install())
@@ -323,111 +353,210 @@ class Registration:
             time.sleep(2)
             self.wait_for_visibility(details_fetched)
             self.wait_and_click(details_fetched)
-            #self.wait_for_visibility(progress_bar)
             self.wait_for_invisibility(progress_bar)
             self.wait_for_visibility(review_deatils)
             self.wait_and_click(edit_option)
             time.sleep(2)
             self.wait_for_visibility(personal_details)
-
             self.clear_text_box(first_name)
             self.clear_text_box(last_name)
-
-
             self.wait_send_keys(first_name,row['First_Name'])
             self.wait_send_keys(last_name,row['Last_Name'])
-
-            #self.wait_send_keys(Dob_feild,row['DOB'])
-
-            self.select_dropdown_value(gender_drop,'Male')
-
-            self.clear_text_box(Pan_Number)
-
-            self.wait_send_keys(Pan_Number,row['PAN_Number'])
-            self.update_dl()
-            self.clear_text_box(driving_lic)
-            self.wait_send_keys(driving_lic,'JH4619440257018')
-
-            
-            #self.wait_for_invisibility(progress_bar)
-
-
-            #self.wait_send_keys(address_line1,row['Address'])
-
-
-            self.clear_text_box(customer_zip_code)
-
-            self.wait_send_keys(customer_zip_code,row['Pincode'])
+            self.enter_dob_js(row['DOB'])
             time.sleep(2)
-
-            #self.wait_for_invisibility(progress_bar)
+            self.select_dropdown_value(gender_drop,'Male')
+            self.clear_text_box(Pan_Number)
+            self.wait_send_keys(Pan_Number,row['PAN_Number'])
+            self.clear_text_box(driving_lic)
+            db_obj.update_dl()
+            self.wait_send_keys(driving_lic,'JH4619440257018')
+            self.clear_text_box(address_line1)
+            self.clear_text_box(address_line2)
+            self.clear_text_box(customer_zip_code)
+            self.wait_send_keys(address_line1,row['Address'])
+            self.wait_send_keys(address_line2,row['Business_Address'])
+            self.wait_send_keys(customer_zip_code,row['Pincode'])
             self.clear_text_box(email_feild)
             self.wait_send_keys(email_feild,row['Valid_Email'])
-
+            time.sleep(4)
             self.clear_text_box(net_income)
-
             self.wait_send_keys(net_income,'55000')
-
-
-            
-
-            #self.wait_for_invisibility(progress_bar)
-
-
             self.clear_text_box(ifsc_new)
-            self.wait_send_keys(ifsc_new,row['IFSC_Code'])
             self.clear_text_box(account_no)
             self.clear_text_box(confirm_account_no)
-
+            self.wait_send_keys(ifsc_new,row['IFSC_Code'])
+            time.sleep(2)
             self.wait_send_keys(account_no,row['Account_Number'])
             self.wait_send_keys(confirm_account_no,row['Confirm_Account'])
-
             self.wait_for_invisibility(progress_bar)
-
-            # self.select_dropdown_by_index(Account_type,1)
-            # self.select_dropdown_by_index(Account_active_month,1)
-            # self.select_dropdown_value(Account_active_year,'2022')
-
             customerid = db_obj.get_customerid_customerphone(row['Phone_Number_New'])
             db_obj.insert_six_variables(customerid)
-
             db_obj.update_ml_model(customerid)
             db_obj.insert_ml_model(customerid,980)
             db_obj.insert_six_variables(customerid)
+            self.wait_for_invisibility(progress_bar)
+            self.scroll_into_view(Account_creation)
+            self.wait_and_click(Account_creation)
+            self.wait_for_invisibility(progress_bar)
+            #time.sleep(3)
+            self.wait_for_visibility(Congrtualtions_cibil)
+            print("Displayed:",Congrtualtions_cibil)
+            self.wait_for_visibility(progress_bar)
+            self.wait_for_invisibility(progress_bar)
+            self.wait_for_visibility(cibil_button)
+            time.sleep(2)
+            self.visibility_and_click(cibil_button)
+            self.driver.quit()
 
+
+
+            # self.wait_for_visibility(cibil_button)
+            # self.wait_and_click(cibil_button)
+            # self.wait_for_invisibility(progress_bar)
+            # time.sleep(2)
+            # self.wait_for_invisibility(progress_bar)
+
+            # self.interact_with_progress(submit_button)
+            # self.wait_for_invisibility(progress_bar)
+
+
+            # self.wait_and_click(Verifiy_acccount)
+            # self.wait_and_click(Confirm_ebv)
+
+
+            # self.wait_for_visibility(ver_iframe)
+
+
+            # ver_iframe1 = self.driver.find_element(By.ID, 'verificationIframe')
+            # self.driver.switch_to.frame(ver_iframe1)
+
+
+
+            # time.sleep(4)
+
+            # self.driver.switch_to.default_content()
+            # self.complete_ebv()
+
+            # self.driver.quit()
+
+    def new_login(self):
+        excel_data = self.read_excel_file()
+        for row in excel_data:
+            chrome_service = Service(ChromeDriverManager().install())
+            prefs = {
+                "profile.default_content_setting_values.media_stream_mic": 1,
+                "profile.default_content_setting_values.media_stream_camera": 1,
+                "profile.default_content_setting_values.notifications": 1,
+                "profile.default_content_setting_values.geolocation": 1
+            }
+            chrome_options = Options()
+            # chrome_options.add_argument("--headless=new") 
+            chrome_options.add_experimental_option("detach", True)
+            chrome_options.add_experimental_option("prefs", prefs)
+            chrome_options.add_argument("--use-fake-ui-for-media-stream")
+            chrome_options.add_argument("--force-device-scale-factor=0.80")
+            chrome_options.add_argument("--guest")
+            self.driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
+            self.driver.maximize_window()
+
+            url = self.get_recent_final_url()
+            self.driver.get(url)
+            self.wait_for_visibility(language)
+
+            self.wait_and_click(english_lang)
+            #self.wait_for_visibility(progress_bar)
+            self.wait_for_invisibility(progress_bar)
+
+            self.driver.switch_to.default_content()
 
             self.wait_for_invisibility(progress_bar)
-            
 
-            self.scroll_to_element(submit_button)
-            time.sleep(3)
+            time.sleep(2)
 
+
+            self.wait_for_visibility(OTP_1)
+
+            ver_code = db_obj.get_verification_code(row['Phone_Number_New'])
+            otp = db_obj.aes_decrypt(ver_code)
+
+            self.wait_send_keys(OTP_1,otp[0])
+            self.wait_send_keys(OTP_2,otp[1])
+            self.wait_send_keys(OTP_3,otp[2])
+            self.wait_send_keys(OTP_4,otp[3])
+            self.wait_send_keys(OTP_5,otp[4])
+            self.wait_send_keys(OTP_6,otp[5])
+
+            self.wait_and_click(Proceed_button_new)
+            self.wait_for_invisibility(progress_bar) 
+            #time.sleep(300)           
+
+            self.wait_for_visibility(cibil_button)
+            self.wait_and_click(cibil_button)
             self.wait_for_invisibility(progress_bar)
             time.sleep(2)
             self.wait_for_invisibility(progress_bar)
-
             self.interact_with_progress(submit_button)
             self.wait_for_invisibility(progress_bar)
-
-
             self.wait_and_click(Verifiy_acccount)
             self.wait_and_click(Confirm_ebv)
-
-
             self.wait_for_visibility(ver_iframe)
-
-
             ver_iframe1 = self.driver.find_element(By.ID, 'verificationIframe')
             self.driver.switch_to.frame(ver_iframe1)
-
-
-
             time.sleep(4)
-
             self.driver.switch_to.default_content()
             self.complete_ebv()
-
             self.driver.quit()
+
+    def logout_relogin(self):
+        excel_data = self.read_excel_file()
+        for row in excel_data:
+            chrome_service = Service(ChromeDriverManager().install())
+            prefs = {
+                "profile.default_content_setting_values.media_stream_mic": 1,
+                "profile.default_content_setting_values.media_stream_camera": 1,
+                "profile.default_content_setting_values.notifications": 1,
+                "profile.default_content_setting_values.geolocation": 1
+            }
+            chrome_options = Options()
+            # chrome_options.add_argument("--headless=new") 
+            chrome_options.add_experimental_option("detach", True)
+            chrome_options.add_experimental_option("prefs", prefs)
+            chrome_options.add_argument("--use-fake-ui-for-media-stream")
+            chrome_options.add_argument("--force-device-scale-factor=0.80")
+            chrome_options.add_argument("--guest")
+            self.driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
+            self.driver.maximize_window()
+
+            url = self.get_recent_final_url()
+            self.driver.get(url)
+            self.wait_for_visibility(language)
+
+            self.wait_and_click(english_lang)
+            #self.wait_for_visibility(progress_bar)
+            self.wait_for_invisibility(progress_bar)
+
+            self.driver.switch_to.default_content()
+
+            self.wait_for_invisibility(progress_bar)
+
+            time.sleep(2)
+
+
+            self.wait_for_visibility(OTP_1)
+
+            ver_code = db_obj.get_verification_code(row['Phone_Number_New'])
+            otp = db_obj.aes_decrypt(ver_code)
+
+            self.wait_send_keys(OTP_1,otp[0])
+            self.wait_send_keys(OTP_2,otp[1])
+            self.wait_send_keys(OTP_3,otp[2])
+            self.wait_send_keys(OTP_4,otp[3])
+            self.wait_send_keys(OTP_5,otp[4])
+            self.wait_send_keys(OTP_6,otp[5])
+
+            self.wait_and_click(Proceed_button_new)
+            #self.wait_for_invisibility(progress_bar)  
+
             
         
     def complete_ebv(self):
@@ -674,20 +803,20 @@ class Registration:
             chrome_options.add_argument("--guest")
             self.driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
             self.driver.maximize_window()
-            self.driver.get('https://msme.finextqa.xyz/#x')
+            self.driver.get(self.build_url())
 
-            self.wait_for_visibility(mobile_number_feild)
-            self.wait_send_keys(mobile_number_feild,row['Phone_Number_New'])
+            # self.wait_for_visibility(mobile_number_feild)
+            # self.wait_send_keys(mobile_number_feild,row['Phone_Number_New'])
 
-            self.wait_and_click(udyam_consent)
+            # self.wait_and_click(udyam_consent)
             
 
-            self.interact_with_progress(submit_number)
-            self.wait_for_invisibility(progress_bar)
+            # self.interact_with_progress(submit_number)
+            # self.wait_for_invisibility(progress_bar)
 
-            self.wait_send_keys(lendez_password_input,row['Password'])
-            self.wait_and_click(submit_number)
-            self.wait_for_invisibility(progress_bar)
+            # self.wait_send_keys(lendez_password_input,row['Password'])
+            # self.wait_and_click(submit_number)
+            # self.wait_for_invisibility(progress_bar)
 
 
 

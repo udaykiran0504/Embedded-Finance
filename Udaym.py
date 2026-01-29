@@ -56,6 +56,8 @@ def generate_pan_number(existing_pan_numbers, first_letter):
     return pan_number
 
 
+
+
 engine = create_engine(connection_string)
 def generate_valid_password(min_length=8):
     if min_length < 8:
@@ -103,19 +105,19 @@ def generate_unique_phone(existing_phones):
         if phone not in existing_phones:
             return phone
         
-def generate_retail_id(existing_ids):
+def generate_driving_license(existing_ids):
     while True:
         # Generate the parts
         prefix = ''.join(random.choices(string.ascii_uppercase, k=2))
-        middle = str(random.randint(0, 9999999)).zfill(7)
-        suffix = str(random.randint(0, 999)).zfill(3)
+        middle = str(random.randint(0, 9999999999999)).zfill(13)
+        #suffix = str(random.randint(0, 999)).zfill(3)
 
         # Combine to final format
-        retail_id = f"{prefix}-{middle}-{suffix}"
+        driving_li = f"{prefix}{middle}"
 
         # Check if it's unique
-        if retail_id not in existing_ids:
-            return retail_id
+        if driving_li not in existing_ids:
+            return driving_li
 
 def generate_random_number_length(length):
     if length == 1:
@@ -243,7 +245,7 @@ def generate_dob(age_min=25, age_max=45):
     dob = start_date + timedelta(days=random_days)
     
     # Format as DDMMYYYY
-    return dob.strftime("%d%m%Y")
+    return dob.strftime("%Y-%m-%d")
 
 
 def generate_random_salary(min_salary, max_salary):
@@ -369,7 +371,7 @@ with engine.connect() as connection:
     """
     existing_emails = [row[0] for row in connection.execute(text(existing_emails_query)).fetchall()]
 
-    existing_ids_query = 'select Retailerid from RetailerData'
+    existing_ids_query = 'select DrivingLicense from CustomerIdentity'
     existing_ids = [row[0] for row in connection.execute(text(existing_ids_query)).fetchall()]
 
 
@@ -451,7 +453,7 @@ for i in range(num_records):
         'Office_Phone': generate_unique_phone(existing_phones),
         'Business_link': generate_random_string(4, 6),
         # 'reference': generate_random_string(4, 6),    
-        'Retailerid' : generate_retail_id(existing_ids)
+        'drivinglic' : generate_driving_license(existing_ids)
     })
 
 

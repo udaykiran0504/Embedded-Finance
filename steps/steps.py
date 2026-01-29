@@ -16,14 +16,15 @@ reg_obj = Registration()
 
 excel_data = reg_obj.read_excel_file()
 max_retries = 10
-@given('The Customer is on Udyam registation page')
+@given('The Customer is on embeded registation page')
 def click_flexpay_icon(context):
-    reg_obj.udyam_reister()
+    reg_obj.Embeded_reister()
+    reg_obj.new_login()
     reg_obj.update_insertion()
 
 @given('Complete Customer')
 def click_flexpay_icon(context):
-    reg_obj.udyam_reister()
+    reg_obj.Embeded_reister()
     reg_obj.update_insertion()
 
 
